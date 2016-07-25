@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"regexp"
 
 	"github.com/chrislusf/seaweedfs/weed/glog"
 	"github.com/chrislusf/seaweedfs/weed/images"
@@ -18,6 +19,11 @@ import (
 	"github.com/chrislusf/seaweedfs/weed/storage"
 	"github.com/chrislusf/seaweedfs/weed/util"
 )
+
+var re_ImageResizeQuery *regexp.Regexp = 
+	regexp.MustCompile(`^(.*)_(pico|icon|thumb|small|compact|medium|large|grande|1024x1024|2048x2048|master)(\.jpg|\.png|\.gif)$`)
+
+// nginx cache key .+/(\d+)/([a-z0-9]+)/(?:.+_(pico|icon|thumb|small|compact|medium|large|grande|1024x1024|2048x2048|master)\.(?:jpg|png|gif)|.+)
 
 var fileNameEscaper = strings.NewReplacer("\\", "\\\\", "\"", "\\\"")
 
@@ -124,14 +130,11 @@ func (vs *VolumeServer) GetOrHeadHandler(w http.ResponseWriter, r *http.Request)
 		}
 	}
 	if ext == ".png" || ext == ".jpg" || ext == ".gif" {
-		width, height := 0, 0
-		if r.FormValue("width") != "" {
-			width, _ = strconv.Atoi(r.FormValue("width"))
+		re_ImageResizeQuery_result := re_ImageResizeQuery.FindStringSubmatch(r.URL.Path)
+		if re_ImageResizeQuery_result != nil {
+			segSize := re_ImageResizeQuery_result[2]
+			n.Data, _, _ = images.Resized_Fit(ext, n.Data, segSize)
 		}
-		if r.FormValue("height") != "" {
-			height, _ = strconv.Atoi(r.FormValue("height"))
-		}
-		n.Data, _, _ = images.Resized(ext, n.Data, width, height)
 	}
 
 	if e := writeResponseContent(filename, mtype, bytes.NewReader(n.Data), w, r); e != nil {
